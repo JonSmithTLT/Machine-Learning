@@ -1,6 +1,4 @@
 #Jon Smith
-#CWID: 886383009
-
 
 import pandas as pd
 import numpy as np
