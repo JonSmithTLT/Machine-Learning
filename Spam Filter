@@ -1,1 +1,255 @@
+from sklearn.naive_bayes import GaussianNB
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn import svm
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn import metrics
+from statsmodels.stats.proportion import proportion_confint
 
+import matplotlib.pyplot as plt
+import scipy.stats as st
+import re
+import pandas as pd
+import numpy as np
+
+
+# In[2]:
+
+
+def processText(text):
+    text = text.lower()
+    text = re.sub('\\W', ' ', text)
+    return text
+
+
+# In[3]:
+
+
+def rating(test, true):
+    truePos = falsePos = trueNeg = falseNeg = 0
+    for i in range(len(test)):
+        if (true[i] == 1) and (true[i] == test[i]):
+            truePos = truePos + 1
+        elif (true[i] == 0) and (true[i] == test[i]):
+            trueNeg = trueNeg + 1
+        elif (true[i] == 1) and (true[i] != test[i]):
+            falseNeg = falseNeg + 1
+        else:
+            falsePos = falsePos + 1
+    return truePos, falsePos, trueNeg, falseNeg
+
+
+# In[4]:
+
+
+def sensitivity(truePos, falseNeg):
+    return (truePos / (truePos + falseNeg))
+
+
+# In[5]:
+
+
+def specificity(trueNeg, falsePos):
+    return (trueNeg / (trueNeg + falsePos))
+
+
+# In[6]:
+
+
+def precision(truePos, falsePos):
+    return (truePos / (truePos + falsePos))
+
+
+# In[7]:
+
+
+def accuracy(truePos, falsePos, trueNeg, falseNeg):
+    return ( (truePos + trueNeg) / (truePos + trueNeg + falsePos + falseNeg) )
+
+
+# In[8]:
+
+
+df = pd.read_csv('emails.csv')
+x = df['text']
+y = df['spam']
+
+
+# In[9]:
+
+
+counts = CountVectorizer(preprocessor = processText, stop_words = 'english')
+text = counts.fit_transform(df['text'])
+x_train, x_test, y_train, y_test = train_test_split(text, y, test_size = 0.25, random_state = 1)
+
+
+# In[10]:
+
+
+gnb = GaussianNB()
+knn = KNeighborsClassifier(n_neighbors = 5)
+clf = svm.SVC(probability = True)
+
+svc_model = clf.fit(x_train, y_train)
+knn_model = knn.fit(x_train, y_train)
+gnb_model = gnb.fit(x_train.toarray(), y_train)
+
+
+# In[11]:
+
+
+print('Support Vector Machine R2 (train):          ', round(svc_model.score(x_train, y_train), 5))
+print('K-Nearest Neighbor R2 (train):              ', round(knn_model.score(x_train, y_train), 5))
+print('Gaussian Naive Bayes Classifier R2 (train): ', round(gnb_model.score(x_train.toarray(), y_train), 5))
+
+
+# In[12]:
+
+
+print('Support Vector Machine R2 (test):          ', round(svc_model.score(x_test, y_test), 5))
+print('K-Nearest Neighbor R2 (test):              ', round(knn_model.score(x_test, y_test), 5))
+print('Gaussian Naive Bayes Classifier R2 (test): ', round(gnb_model.score(x_test.toarray(), y_test), 5))
+
+
+# In[13]:
+
+
+svc_test = svc_model.predict(x_test)
+knn_test = knn_model.predict(x_test)
+gnb_test = gnb_model.predict(x_test.toarray())
+
+
+# In[14]:
+
+
+tp_svc, fp_svc, tn_svc, fn_svc = rating(svc_test.tolist(), y_test.tolist())
+tp_knn, fp_knn, tn_knn, fn_knn = rating(knn_test.tolist(), y_test.tolist())
+tp_gnb, fp_gnb, tn_gnb, fn_gnb = rating(gnb_test.tolist(), y_test.tolist())
+
+
+# In[15]:
+
+
+svc_acc = accuracy(tp_svc, fp_svc, tn_svc, fn_svc)
+svc_spec = specificity(tn_svc, fp_svc)
+svc_sens = sensitivity(tp_svc, fn_svc)
+svc_prec = precision(tp_svc, fp_svc)
+
+
+# In[16]:
+
+
+print("Support Vector Machine Accuracy:    ", round(svc_acc, 5))
+print("Support Vector Machine Specificity: ", round(svc_spec, 5))
+print("Support Vector Machine Sensitivity: ", round(svc_sens, 5))
+print("Support Vector Machine Precision:   ", round(svc_prec, 5))
+
+
+# In[17]:
+
+
+knn_acc =  round(accuracy(tp_knn, fp_knn, tn_knn, fn_knn), 5)
+knn_spec = round(specificity(tn_knn, fp_knn), 5)
+knn_sens = round(sensitivity(tp_knn, fn_knn), 5)
+knn_prec = round(precision(tp_knn, fp_knn), 5)
+
+
+# In[18]:
+
+
+print("K-Nearest Neighbor Accuracy:    ", knn_acc)
+print("K-Nearest Neighbor Specificity: ", knn_spec)
+print("K-Nearest Neighbor Sensitivity: ", knn_sens)
+print("K-Nearest Neighbor Precision:   ", knn_prec)
+
+
+# In[19]:
+
+
+gnb_acc =  round(accuracy(tp_gnb, fp_gnb, tn_gnb, fn_gnb), 5)
+gnb_spec = round(specificity(tn_gnb, fp_gnb), 5)
+gnb_sens = round(sensitivity(tp_gnb, fn_gnb), 5)
+gnb_prec = round(precision(tp_gnb, fp_gnb), 5)
+
+
+# In[20]:
+
+
+print("Gaussian Naive Bayes Accuracy:    ", gnb_acc)
+print("Gaussian Naive Bayes Specificity: ", gnb_spec)
+print("Gaussian Naive Bayes Sensitivity: ", gnb_sens)
+print("Gaussian Naive Bayes Precision:   ", gnb_prec)
+
+
+# In[21]:
+
+
+fp_knn_plt, tp_knn_plt, _ = metrics.roc_curve(y_test, knn_test)
+fp_svc_plt, tp_svc_plt, _ = metrics.roc_curve(y_test, svc_test)
+fp_gnb_plt, tp_gnb_plt, _ = metrics.roc_curve(y_test, gnb_test)
+
+auc_knn = round(metrics.roc_auc_score(y_test, knn_test), 5)
+auc_svc = round(metrics.roc_auc_score(y_test, svc_test), 5)
+auc_gnb = round(metrics.roc_auc_score(y_test, gnb_test), 5)
+
+
+fig, ax = plt.subplots()
+ax.plot(fp_svc_plt, tp_svc_plt, color = 'red', label = 'SVM (AUC) = ' + str(auc_svc))
+ax.plot(fp_knn_plt, tp_knn_plt, color = 'green', label = 'KNN (AUC) = ' + str(auc_knn))
+ax.plot(fp_gnb_plt, tp_gnb_plt, color = 'blue', label = 'GNB (AUC) = ' + str(auc_gnb))
+ax.legend(loc = 'best')
+
+plt.ylabel('True Posisitve Rate')
+plt.xlabel('False Posisitve Rate')
+plt.show()
+
+
+# In[28]:
+
+
+CM_SVC = metrics.confusion_matrix(y_test, svc_test)
+CM_display = metrics.ConfusionMatrixDisplay(confusion_matrix = CM_SVC, display_labels = [False, True])
+CM_display.plot()
+plt.title('SVM Confusion Matrix')
+plt.show()
+
+
+# In[29]:
+
+
+CM_GNB = metrics.confusion_matrix(y_test, gnb_test)
+CM_display = metrics.ConfusionMatrixDisplay(confusion_matrix = CM_GNB, display_labels = [False, True])
+CM_display.plot()
+plt.title('GNB Confusion Matrix')
+plt.show()
+
+
+# In[24]:
+
+
+CM_KNN = metrics.confusion_matrix(y_test, knn_test)
+CM_display = metrics.ConfusionMatrixDisplay(confusion_matrix = CM_KNN, display_labels = [False, True])
+CM_display.plot()
+plt.title('KNN Confusion Matrix')
+plt.show()
+
+
+# In[25]:
+
+
+lower, upper = proportion_confint((CM_SVC[0][0] + CM_SVC[1][1]), sum(sum(CM_SVC)), 0.05)
+print('SVM Lower (CI) = %.3f, SVM Upper (CI) = %.3f' % (lower, upper))
+
+
+# In[26]:
+
+
+lower, upper = proportion_confint((CM_GNB[0][0] + CM_GNB[1][1]), sum(sum(CM_GNB)), 0.05)
+print('GNB Lower (CI) = %.3f, GNB Upper (CI) = %.3f' % (lower, upper))
+
+
+# In[27]:
+
+
+lower, upper = proportion_confint((CM_KNN[0][0] + CM_KNN[1][1]), sum(sum(CM_KNN)), 0.05)
+print('KNN Lower (CI) = %.3f, KNN Upper (CI) = %.3f' % (lower, upper))
